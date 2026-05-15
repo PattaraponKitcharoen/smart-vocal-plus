@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { Mic, MicOff, Flame, Target, Activity } from 'lucide-react';
 import { 
   startAudio, stopAudio, getAudioData, autoCorrelate, 
   noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch 
 } from '../utils/audioEngine';
+import { AppContext } from '../contexts/AppContext';
 
 const VocalPage = () => {
   const [isListening, setIsListening] = useState(false);
@@ -19,6 +20,9 @@ const VocalPage = () => {
   const lastUpdateRef = useRef(0);
   const pitchBufferRef = useRef([]); 
 
+  // ดึงฟังก์ชันอัปเดต Range มาจาก Context
+  const { updateVocalRange } = useContext(AppContext);
+
   const whiteKeys = [
     { n: "C", num: 48, label: "C3" }, { n: "D", num: 50, label: "D" }, { n: "E", num: 52, label: "E" }, 
     { n: "F", num: 53, label: "F" }, { n: "G", num: 55, label: "G" }, { n: "A", num: 57, label: "A" }, 
@@ -30,6 +34,13 @@ const VocalPage = () => {
     { n: "F#", num: 54, left: 50, label: "F#" }, { n: "G#", num: 56, left: 62.5, label: "G#" }, 
     { n: "A#", num: 58, left: 75, label: "A#" }, { n: "C#", num: 61, left: 100, label: "C#" }
   ];
+
+  // อัปเดต Vocal Range เมื่อเปิดโหมด Find Range และมีเสียงเข้า
+  useEffect(() => {
+    if (isFindingRange && activeNoteNum !== null) {
+      updateVocalRange(activeNoteNum);
+    }
+  }, [activeNoteNum, isFindingRange, updateVocalRange]);
 
   const toggleMic = async () => {
     if (isListening) {
@@ -87,7 +98,7 @@ const VocalPage = () => {
       const sliceWidth = canvas.width / dataArray.length;
       let x = 0;
       for (let i = 0; i < dataArray.length; i++) {
-        const v = dataArray[i] * (canvas.height / 2.5); // ปรับความสูงกราฟให้เด้งพอดีกล่อง
+        const v = dataArray[i] * (canvas.height / 2.5); 
         const y = (canvas.height / 2) + v;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
@@ -132,10 +143,8 @@ const VocalPage = () => {
   };
 
   return (
-    // เปลี่ยน overflow เป็น hidden และจัด flex ให้กระจายตัว
     <div className="flex flex-col h-full bg-darkBg text-white overflow-hidden relative">
       
-      {/* 1. Header (ลด Padding) */}
       <div className="px-6 pt-4 pb-1 flex justify-between items-center shrink-0">
         <h1 className="text-xl font-black tracking-tight">VOCAL <span className="text-neonBlue">MONITOR</span></h1>
         <button 
@@ -150,7 +159,6 @@ const VocalPage = () => {
         </button>
       </div>
 
-      {/* 3. Find Range Indicator (ลดความสูง) */}
       <div className="h-6 px-6 flex items-center justify-center shrink-0">
         {isFindingRange && (
           <div className="flex items-center gap-2 text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/30 animate-pulse">
@@ -160,7 +168,6 @@ const VocalPage = () => {
         )}
       </div>
 
-      {/* 2. Main Pitch Display (ใช้ flex-1 ยืดหดอัตโนมัติ) */}
       <div className="flex-1 flex flex-col items-center justify-center relative min-h-0">
         <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
           <div className={`w-40 h-40 md:w-64 md:h-64 rounded-full blur-[60px] transition-colors duration-500 ${isFindingRange ? 'bg-rose-500' : 'bg-neonBlue'}`}></div>
@@ -173,7 +180,6 @@ const VocalPage = () => {
         </div>
       </div>
 
-      {/* Tuning Gauge */}
       <div className="px-10 pb-4 shrink-0">
         <div className="flex justify-between text-[9px] font-bold text-slate-500 mb-1.5 tracking-widest">
           <span>FLAT</span>
@@ -189,7 +195,6 @@ const VocalPage = () => {
         </div>
       </div>
 
-      {/* 4. Action Buttons (ลด Padding และขนาดไอคอน) */}
       <div className="grid grid-cols-2 gap-3 px-6 pb-4 shrink-0">
         <button 
           onClick={toggleFindRange}
@@ -217,7 +222,6 @@ const VocalPage = () => {
         </button>
       </div>
 
-      {/* Live Waveform Box (ลดความสูง Canvas) */}
       <div className="px-6 pb-4 shrink-0">
         <div className="bg-darkCard border border-slate-800 rounded-xl p-3 overflow-hidden relative">
           <div className="flex justify-between items-center mb-1">
@@ -228,11 +232,9 @@ const VocalPage = () => {
         </div>
       </div>
 
-      {/* Piano Visualizer (ลดความสูงแป้นลงให้พอดีจอ) */}
       <div className="px-6 pb-2 shrink-0">
         <div className="relative w-full h-20 bg-slate-900 border-x-2 border-t-2 border-b-4 border-slate-800 rounded-t-lg rounded-b-xl flex overflow-hidden">
           
-          {/* ขาว */}
           {whiteKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
@@ -249,7 +251,6 @@ const VocalPage = () => {
             );
           })}
 
-          {/* ดำ */}
           {blackKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
