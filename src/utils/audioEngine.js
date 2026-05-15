@@ -120,3 +120,17 @@ export const getNoteString = (noteNumber) => {
 export const getSampleRate = () => {
   return audioContext ? audioContext.sampleRate : 44100;
 };
+
+// --- ส่วนที่เพิ่มใหม่: คำนวณความเพี้ยน (Cents) ---
+
+// คำนวณหาความถี่ (Hz) ที่ถูกต้อง 100% ของตัวโน้ตนั้นๆ ตามมาตรฐาน
+export const getStandardFrequency = (noteNumber) => {
+  return 440 * Math.pow(2, (noteNumber - 69) / 12);
+};
+
+// คำนวณว่าเสียงที่ร้อง ห่างจากโน้ตที่ถูกต้องกี่ Cents (-50 ถึง +50)
+export const getCentsOffPitch = (frequency, noteNumber) => {
+  const standardFreq = getStandardFrequency(noteNumber);
+  // สมการเปรียบเทียบระยะห่างของความถี่
+  return Math.floor(1200 * Math.log2(frequency / standardFreq));
+};
