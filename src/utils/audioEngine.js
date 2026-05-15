@@ -57,3 +57,66 @@ export const getAudioData = () => {
   analyser.getFloatTimeDomainData(dataArray);
   return dataArray;
 };
+
+// --- ส่วนที่เพิ่มใหม่: อัลกอริทึมจับความถี่ (Pitch Detection) ---
+
+// อาเรย์เก็บชื่อตัวโน้ตทั้งหมด
+const noteStrings = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+// 1. อัลกอริทึม Autocorrelation หาค่าความถี่ (Hz) จากคลื่นเสียง
+export const autoCorrelate = (buf, sampleRate) => {
+  let SIZE = buf.length;
+  let rms = 0; // Root Mean Square (หาความดัง)
+
+  // เช็คความดังก่อน ถ้าเบาไป (ไม่ได้พูด) ให้ข้ามไปเลย จะได้ไม่จับมั่ว
+  for (let i = 0; i < SIZE; i++) {
+    let val = buf[i];
+    rms += val * val;
+  }
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1; // เสียงเบาเกินไป (Noise)
+
+  // กระบวนการ Autocorrelation (หาจุดที่คลื่นเสียงตัดกันเพื่อหารอบความถี่)
+  let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++)
+    if (Math.abs(buf[i]) < thres) { r1 = i; break; }
+  for (let i = 1; i < SIZE / 2; i++)
+    if (Math.abs(buf[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+
+  buf = buf.slice(r1, r2);
+  SIZE = buf.length;
+
+  let c = new Array(SIZE).fill(0);
+  for (let i = 0; i < SIZE; i++)
+    for (let j = 0; j < SIZE - i; j++)
+      c[i] = c[i] + buf[j] * buf[j + i];
+
+  let d = 0; while (c[d] > c[d + 1]) d++;
+  let maxval = -1, maxpos = -1;
+  for (let i = d; i < SIZE; i++) {
+    if (c[i] > maxval) {
+      maxval = c[i];
+      maxpos = i;
+    }
+  }
+  let T0 = maxpos;
+  return sampleRate / T0;
+};
+
+// 2. แปลง Hz เป็นลำดับตัวโน้ต (MIDI Note Number)
+export const noteFromPitch = (frequency) => {
+  const noteNum = 12 * (Math.log(frequency / 440) / Math.log(2));
+  return Math.round(noteNum) + 69; // 69 คือโน้ต A4 (440Hz)
+};
+
+// 3. แปลงลำดับตัวโน้ต เป็นชื่อโน้ต (เช่น C4, D#5)
+export const getNoteString = (noteNumber) => {
+  const octave = Math.floor(noteNumber / 12) - 1;
+  const noteName = noteStrings[noteNumber % 12];
+  return `${noteName}${octave}`;
+};
+
+// ฟังก์ชันดึงค่า Sample Rate จากระบบ
+export const getSampleRate = () => {
+  return audioContext ? audioContext.sampleRate : 44100;
+};

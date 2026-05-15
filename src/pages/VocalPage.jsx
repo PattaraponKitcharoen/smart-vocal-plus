@@ -1,70 +1,80 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mic, Square } from 'lucide-react';
-import { startAudio, stopAudio, getAudioData } from '../utils/audioEngine';
+import { startAudio, stopAudio, getAudioData, autoCorrelate, noteFromPitch, getNoteString, getSampleRate } from '../utils/audioEngine';
 
 const VocalPage = () => {
   const [isListening, setIsListening] = useState(false);
+  const [pitch, setPitch] = useState(null); // เก็บค่า Hz
+  const [note, setNote] = useState('--');    // เก็บชื่อโน้ต
+  
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
 
   const toggleMic = async () => {
     if (isListening) {
-      // ถ้าเปิดอยู่ ให้ปิดไมค์
       stopAudio();
       setIsListening(false);
+      setNote('--');
+      setPitch(null);
       cancelAnimationFrame(animationRef.current);
     } else {
-      // ถ้าปิดอยู่ ให้ขออนุญาตและเปิดไมค์
       const success = await startAudio();
       if (success) {
         setIsListening(true);
-        drawWaveform(); // เริ่มวาดกราฟทันที
+        processAudio(); // เปลี่ยนชื่อจาก drawWaveform ให้ครอบคลุมขึ้น
       } else {
-        alert("กรุณาอนุญาตการเข้าถึงไมโครโฟนเพื่อใช้งานฟีเจอร์นี้ครับ");
+        alert("กรุณาอนุญาตการเข้าถึงไมโครโฟนครับ");
       }
     }
   };
 
-  const drawWaveform = () => {
+  const processAudio = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dataArray = getAudioData();
 
-    // 1. ระบายสีพื้นหลังทับของเก่า (สีเดียวกับกล่อง)
+    // วาดพื้นหลัง
     ctx.fillStyle = '#1e293b'; 
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     if (dataArray) {
-      // 2. ตั้งค่าปากกาสำหรับวาดเส้น
+      // 1. วาดกราฟ
       ctx.lineWidth = 3;
-      ctx.strokeStyle = '#10b981'; // สี neonGreen
+      ctx.strokeStyle = '#10b981';
       ctx.beginPath();
-
       const sliceWidth = canvas.width / dataArray.length;
       let x = 0;
-
-      // 3. ลูปวาดเส้นตามความดังของเสียง (Amplitude)
       for (let i = 0; i < dataArray.length; i++) {
-        const v = dataArray[i] * 150.0; // คูณขยายสัญญาณให้กราฟเด้งชัดๆ
+        const v = dataArray[i] * 150.0;
         const y = (canvas.height / 2) + v;
-
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
         x += sliceWidth;
       }
       ctx.lineTo(canvas.width, canvas.height / 2);
       ctx.stroke();
+
+      // 2. คำนวณหาตัวโน้ต
+      const sampleRate = getSampleRate();
+      const detectedPitch = autoCorrelate(dataArray, sampleRate);
+      
+      if (detectedPitch !== -1) {
+        // ถ้ามีเสียงดังพอ ให้แปลงเป็นโน้ต
+        const noteNumber = noteFromPitch(detectedPitch);
+        const noteName = getNoteString(noteNumber);
+        
+        setPitch(detectedPitch.toFixed(1));
+        setNote(noteName);
+      } else {
+        // ถ้าเงียบ ให้โชว์ขีด
+        // setNote('--'); // คอมเมนต์ไว้เพื่อค้างโน้ตล่าสุดเวลาหยุดหายใจ
+      }
     }
 
-    // 4. สั่งให้วาดเฟรมต่อไปซ้ำๆ แบบ 60fps
-    animationRef.current = requestAnimationFrame(drawWaveform);
+    animationRef.current = requestAnimationFrame(processAudio);
   };
 
-  // Cleanup: ถอดปลั๊กไมค์อัตโนมัติเวลาผู้ใช้กดหนีไปหน้าอื่น
   useEffect(() => {
     return () => {
       if (isListening) {
@@ -76,21 +86,32 @@ const VocalPage = () => {
 
   return (
     <div className="flex flex-col items-center justify-start pt-10 h-full px-6">
-      <h1 className="text-3xl font-bold text-neonBlue drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] mb-8">
+      <h1 className="text-3xl font-bold text-neonBlue drop-shadow-[0_0_10px_rgba(34,211,238,0.5)] mb-4">
         Vocal Monitor
       </h1>
+
+      {/* โซนแสดงผลตัวโน้ตยักษ์ */}
+      <div className="flex flex-col items-center justify-center h-40 mb-2">
+        <span className={`text-8xl font-black tracking-tighter transition-colors duration-200 ${note !== '--' ? 'text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]' : 'text-slate-700'}`}>
+          {note}
+        </span>
+        <span className="text-neonBlue font-mono text-xl mt-2 tracking-widest h-8">
+          {pitch ? `${pitch} Hz` : ''}
+        </span>
+      </div>
       
-      {/* กล่องแสดงกราฟคลื่นเสียง */}
-      <div className="w-full max-w-md bg-darkCard rounded-2xl overflow-hidden border border-slate-700 shadow-[0_0_20px_rgba(16,185,129,0.1)] mb-10">
+      {/* กล่องกราฟ */}
+      <div className="w-full max-w-md bg-darkCard rounded-2xl overflow-hidden border border-slate-700 shadow-[0_0_20px_rgba(16,185,129,0.1)] mb-10 relative">
+        {/* แกนเล็งเป้า (Crosshair) สีเขียวบางๆ ตรงกลางกราฟ */}
+        <div className="absolute top-1/2 left-0 w-full h-[1px] bg-neonGreen/30 z-10"></div>
         <canvas 
           ref={canvasRef} 
           width="400" 
-          height="160" 
-          className="w-full block"
+          height="120" 
+          className="w-full block relative z-0"
         ></canvas>
       </div>
 
-      {/* ปุ่ม Toggle */}
       <button
         onClick={toggleMic}
         className={`flex items-center gap-3 px-8 py-4 rounded-full font-bold text-lg transition-all duration-300 ${
@@ -100,23 +121,11 @@ const VocalPage = () => {
         }`}
       >
         {isListening ? (
-          <>
-            <Square fill="currentColor" size={24} />
-            Stop Listening
-          </>
+          <><Square fill="currentColor" size={24} /> Stop Listening</>
         ) : (
-          <>
-            <Mic size={24} />
-            Start Mic
-          </>
+          <><Mic size={24} /> Start Mic</>
         )}
       </button>
-
-      <p className="text-slate-400 mt-6 text-sm text-center h-10">
-        {isListening 
-          ? "🎤 กำลังรับเสียง... ลองพูดหรือร้องเพลงดูสิ!" 
-          : "กดปุ่มด้านบนเพื่อทดสอบไมโครโฟน"}
-      </p>
     </div>
   );
 };
