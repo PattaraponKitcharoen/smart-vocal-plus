@@ -5,8 +5,9 @@ export const db = new Dexie('SmartVocalDB');
 
 // 2. กำหนดโครงสร้างตาราง (เก็บ id, ชื่อ, ศิลปิน, คีย์ เป็น Index เพื่อให้ค้นหาเร็ว)
 // ส่วนไฟล์รูป (imageBlob) ไม่ต้องทำ Index เพื่อประหยัดเมมโมรี่ตอนค้นหา
-db.version(1).stores({
-  sheets: '++id, title, artist, songKey, category, dateAdded'
+db.version(2).stores({
+  sheets: '++id, title, artist, songKey, category, dateAdded',
+  userProfile: 'id, name, rank' // เพิ่มตารางเก็บโปรไฟล์
 });
 
 // 3. ฟังก์ชันรีดน้ำหนักรูปภาพ (ลดขนาดให้เหลือความกว้างไม่เกิน 1200px และแปลงเป็น WebP)
