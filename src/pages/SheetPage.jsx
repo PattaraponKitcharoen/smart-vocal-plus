@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Plus, FileText, X, Image as ImageIcon, Check, Trash2, Edit2, User, Filter } from 'lucide-react';
 import { db, compressImage } from '../utils/db';
+import { AppContext } from '../contexts/AppContext';
 
 const SheetPage = () => {
   const [sheets, setSheets] = useState([]);
@@ -22,6 +23,8 @@ const SheetPage = () => {
   const [viewingSheet, setViewingSheet] = useState(null);
 
   const fileInputRef = useRef(null);
+
+  const { calculateStorage } = useContext(AppContext);
 
   useEffect(() => {
     loadSheets();
@@ -70,6 +73,9 @@ const SheetPage = () => {
           imageBlob: blobToSave,
           dateAdded: new Date().toISOString()
         });
+      }
+      
+      if (calculateStorage) {
         await calculateStorage();
       }
 
