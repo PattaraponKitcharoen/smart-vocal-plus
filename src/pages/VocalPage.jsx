@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
-import { Mic, MicOff, Flame, Target, Activity } from 'lucide-react';
+import { Mic, MicOff, Flame, Target, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
 import { 
   startAudio, stopAudio, getAudioData, autoCorrelate, 
   noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch,
@@ -21,6 +21,9 @@ const VocalPage = () => {
   const isWarmingUpRef = useRef(false);
   const warmupBaseNoteRef = useRef(48);
 
+  // State ควบคุม Octave ของเปียโน (ค่าเริ่มต้นคือ 3 = C3)
+  const [baseOctave, setBaseOctave] = useState(3);
+
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(0);
@@ -28,17 +31,42 @@ const VocalPage = () => {
 
   const { updateVocalRange } = useContext(AppContext);
 
+  // คำนวณรหัสโน้ตตาม baseOctave แบบไดนามิก
+  const startNoteNum = (baseOctave + 1) * 12;
+
   const whiteKeys = [
-    { n: "C", num: 48, label: "C3" }, { n: "D", num: 50, label: "D" }, { n: "E", num: 52, label: "E" }, 
-    { n: "F", num: 53, label: "F" }, { n: "G", num: 55, label: "G" }, { n: "A", num: 57, label: "A" }, 
-    { n: "B", num: 59, label: "B" }, { n: "C", num: 60, label: "C4" }
+    { num: startNoteNum, label: `C${baseOctave}` }, 
+    { num: startNoteNum + 2, label: "D" }, 
+    { num: startNoteNum + 4, label: "E" }, 
+    { num: startNoteNum + 5, label: "F" }, 
+    { num: startNoteNum + 7, label: "G" }, 
+    { num: startNoteNum + 9, label: "A" }, 
+    { num: startNoteNum + 11, label: "B" }, 
+    { num: startNoteNum + 12, label: `C${baseOctave + 1}` }
   ];
   
   const blackKeys = [
-    { n: "C#", num: 49, left: 12.5, label: "C#" }, { n: "D#", num: 51, left: 25, label: "D#" }, 
-    { n: "F#", num: 54, left: 50, label: "F#" }, { n: "G#", num: 56, left: 62.5, label: "G#" }, 
-    { n: "A#", num: 58, left: 75, label: "A#" }, { n: "C#", num: 61, left: 100, label: "C#" }
+    { num: startNoteNum + 1, left: 12.5, label: "C#" }, 
+    { num: startNoteNum + 3, left: 25, label: "D#" }, 
+    { num: startNoteNum + 6, left: 50, label: "F#" }, 
+    { num: startNoteNum + 8, left: 62.5, label: "G#" }, 
+    { num: startNoteNum + 10, left: 75, label: "A#" }, 
+    { num: startNoteNum + 13, left: 100, label: "C#" }
   ];
+
+  // ลอจิก: เลื่อนหน้าจอเปียโนตามโน้ตอัตโนมัติ (Auto-scroll)
+  useEffect(() => {
+    if (isWarmingUp && guideNoteNum !== null) {
+      const currentStart = (baseOctave + 1) * 12;
+      const currentEnd = currentStart + 12;
+      
+      // ถ้าไกด์โน้ตอยู่นอกเหนือช่วงเปียโนที่แสดง ให้เลื่อน Octave
+      if (guideNoteNum < currentStart || guideNoteNum > currentEnd) {
+        const newOctave = Math.floor(guideNoteNum / 12) - 1;
+        setBaseOctave(newOctave);
+      }
+    }
+  }, [guideNoteNum, isWarmingUp, baseOctave]);
 
   useEffect(() => {
     if (isFindingRange && activeNoteNum !== null) {
@@ -91,7 +119,8 @@ const VocalPage = () => {
     } else {
       isWarmingUpRef.current = true;
       setIsWarmingUp(true);
-      warmupBaseNoteRef.current = 48;
+      warmupBaseNoteRef.current = 48; // ให้เริ่มไล่สเกลที่ C3 (โน้ต 48)
+      setBaseOctave(3); // บังคับจอให้กลับมาที่ C3 ก่อนเริ่มวอร์ม
       runWarmUpCycle();
     }
   };
@@ -99,7 +128,8 @@ const VocalPage = () => {
   const runWarmUpCycle = () => {
     if (!isWarmingUpRef.current) return;
     
-    if (warmupBaseNoteRef.current > 60) { 
+    // ตั้งให้ไล่สูงสุดถึง C5 (72)
+    if (warmupBaseNoteRef.current > 72) { 
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
       setIsWarmingUp(false);
@@ -181,7 +211,6 @@ const VocalPage = () => {
     animationRef.current = requestAnimationFrame(processAudio);
   };
 
-  // --- จุดที่แก้ไข: เปลี่ยนมาเช็คแบบ Exact Match ---
   const isKeyActive = (keyNum) => {
     if (guideNoteNum !== null) return guideNoteNum === keyNum;
     if (activeNoteNum === null) return false;
@@ -192,6 +221,14 @@ const VocalPage = () => {
     if (note === '--') return 'bg-slate-700';
     if (Math.abs(cents) <= 10) return 'bg-neonGreen shadow-[0_0_15px_#10b981]';
     return cents > 0 ? 'bg-yellow-400' : 'bg-red-400';
+  };
+
+  // ฟังก์ชันกดปุ่มเลื่อน Octave
+  const shiftOctave = (direction) => {
+    setBaseOctave(prev => {
+      const newOctave = prev + direction;
+      return Math.max(1, Math.min(6, newOctave)); // จำกัดขอบเขตให้อยู่แค่ C1 ถึง C6
+    });
   };
 
   return (
@@ -295,10 +332,29 @@ const VocalPage = () => {
         </div>
       </div>
 
-      <div className="px-6 pb-2 shrink-0">
+      <div className="px-6 pb-2 shrink-0 flex flex-col">
+        {/* แถบควบคุมเลื่อนลิ่มเปียโน (Octave Controls) */}
+        <div className="flex justify-between items-center px-4 mb-2">
+          <button 
+            onClick={() => shiftOctave(-1)}
+            disabled={baseOctave <= 1}
+            className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+            Octave {baseOctave} <span className="lowercase text-slate-600">(C{baseOctave} - C{baseOctave + 1})</span>
+          </span>
+          <button 
+            onClick={() => shiftOctave(1)}
+            disabled={baseOctave >= 6}
+            className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
         <div className="relative w-full h-20 bg-slate-900 border-x-2 border-t-2 border-b-4 border-slate-800 rounded-t-lg rounded-b-xl flex overflow-hidden select-none">
-          
-          {/* White Keys */}
           {whiteKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
@@ -316,7 +372,6 @@ const VocalPage = () => {
             );
           })}
 
-          {/* Black Keys */}
           {blackKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
@@ -337,7 +392,6 @@ const VocalPage = () => {
               </div>
             );
           })}
-          
         </div>
       </div>
 
