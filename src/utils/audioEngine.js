@@ -1,29 +1,38 @@
-let audioContext;
-let analyser;
-let microphone;
-let dataArray;
+// เพิ่มตัวแปร micStream เข้ามาเพื่อเก็บฮาร์ดแวร์ไมค์โดยเฉพาะ
+let audioContext = null;
+let analyser = null;
+let microphone = null;
+let dataArray = null;
+let micStream = null; 
 
 export const startAudio = async () => {
   try {
-    // 1. สร้าง Audio Context (รองรับทั้ง Chrome และ Safari)
-    const AudioContext = window.AudioContext || window.webkitAudioContext;
-    audioContext = new AudioContext();
+    // 1. สร้าง Audio Context (เช็คก่อนว่ามีอยู่แล้วหรือยัง เพื่อแชร์กับเปียโน)
+    if (!audioContext || audioContext.state === 'closed') {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioContext();
+    }
+    
+    // ปลุกเครื่องยนต์ถ้ามันถูกพักการทำงาน
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
 
-    // 2. ขออนุญาตใช้ไมโครโฟน
-    const stream = await navigator.mediaDevices.getUserMedia({ 
+    // 2. ขออนุญาตใช้ไมโครโฟน และเก็บลงใน micStream
+    micStream = await navigator.mediaDevices.getUserMedia({ 
       audio: {
-        echoCancellation: false, // ปิดตัดเสียงสะท้อน เพื่อให้ได้เสียงร้องดิบๆ ธรรมชาติที่สุด
-        autoGainControl: false,  // ปิดการปรับลดเสียงอัตโนมัติ
-        noiseSuppression: false  // ปิดการตัดเสียงรบกวน (หรือเปิดถ้าห้องซ้อมเสียงดังมาก)
+        echoCancellation: false, 
+        autoGainControl: false,  
+        noiseSuppression: false  
       } 
     });
 
     // 3. เอาสัญญาณไมค์มาต่อเข้ากับ Context
-    microphone = audioContext.createMediaStreamSource(stream);
+    microphone = audioContext.createMediaStreamSource(micStream);
     
     // 4. สร้างตัววิเคราะห์เสียง (Analyser)
     analyser = audioContext.createAnalyser();
-    analyser.fftSize = 2048; // ขนาด Sample Rate ยิ่งเยอะกราฟยิ่งเนียน
+    analyser.fftSize = 2048; 
     
     // 5. เสียบสายไมค์เข้าตัววิเคราะห์
     microphone.connect(analyser);
@@ -40,16 +49,22 @@ export const startAudio = async () => {
 };
 
 export const stopAudio = () => {
-  // เช็คก่อนว่ามี audioContext ไหม และสถานะต้องยังไม่ถูกปิด
-  if (audioContext && audioContext.state !== 'closed') {
-    audioContext.close();
+  // 1. ถอดสายสัญญาณออกจากเครื่องยนต์เสียง
+  if (microphone) {
+    microphone.disconnect();
+    microphone = null;
   }
   
-  if (microphone) {
-    // สั่งปิดการทำงานของไมค์ที่ไฟขึ้นสีแดงบนเบราว์เซอร์
-    microphone.mediaStream.getTracks().forEach(track => track.stop());
+  // 2. สับสวิตช์ปิดฮาร์ดแวร์ไมโครโฟน (คืนสิทธิ์ให้เบราว์เซอร์ ไฟไมค์จะดับ)
+  if (micStream) {
+    micStream.getTracks().forEach(track => track.stop());
+    micStream = null;
   }
+
+  // ❌ ลบ audioContext.close() ออกไปเรียบร้อยแล้ว เพื่อให้เปียโนยังส่งเสียงได้ต่อ!
 };
+
+// ... (ฟังก์ชัน getAudioData, autoCorrelate และอื่นๆ ของคุณอยู่ต่อจากตรงนี้ได้ตามปกติครับ) ...
 
 // ฟังก์ชันสำหรับดูดข้อมูลคลื่นเสียง ณ เสี้ยววินาทีนั้นๆ ออกไปใช้วาดกราฟ
 export const getAudioData = () => {
