@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { Search, Plus, FileText, X, Image as ImageIcon, Check, Trash2, Edit2, User, Filter } from 'lucide-react';
 import { db, compressImage } from '../utils/db';
 import { AppContext } from '../contexts/AppContext';
@@ -74,7 +74,7 @@ const SheetPage = () => {
           dateAdded: new Date().toISOString()
         });
       }
-      
+
       if (calculateStorage) {
         await calculateStorage();
       }
