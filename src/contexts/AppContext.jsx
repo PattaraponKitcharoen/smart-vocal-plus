@@ -182,7 +182,8 @@ export const AppProvider = ({ children }) => {
     <AppContext.Provider value={{
       lowestNoteNum, highestNoteNum, updateVocalRange, resetVocalRange,
       sheetCount, storageUsed, clearAllData,
-      userProfile, updateProfile, exportAllData, importAllData
+      userProfile, updateProfile, exportAllData, importAllData,
+      calculateStorage
     }}>
       {children}
     </AppContext.Provider>

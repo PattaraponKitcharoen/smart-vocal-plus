@@ -70,6 +70,7 @@ const SheetPage = () => {
           imageBlob: blobToSave,
           dateAdded: new Date().toISOString()
         });
+        await calculateStorage();
       }
 
       closeModal();
