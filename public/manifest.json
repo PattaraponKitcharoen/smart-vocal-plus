@@ -1,0 +1,16 @@
+{
+  "short_name": "Smart Vocal",
+  "name": "Smart Vocal Monitor",
+  "icons": [
+    {
+      "src": "logo512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0f172a",
+  "background_color": "#0f172a"
+}
