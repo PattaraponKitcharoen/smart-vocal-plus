@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useContext } from 'react';
-import { Mic, MicOff, Flame, Target, Activity, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Mic, MicOff, Flame, Target, Activity, ChevronLeft, ChevronRight, X, Settings2, Play } from 'lucide-react';
 import { 
   startAudio, stopAudio, getAudioData, autoCorrelate, 
   noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch,
@@ -13,54 +13,52 @@ const VocalPage = () => {
   const [note, setNote] = useState('--');
   const [cents, setCents] = useState(0);
   const [activeNoteNum, setActiveNoteNum] = useState(null);
-  
   const [isFindingRange, setIsFindingRange] = useState(false);
   
   const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [guideNoteNum, setGuideNoteNum] = useState(null);
   const isWarmingUpRef = useRef(false);
   const warmupBaseNoteRef = useRef(48);
-
-  // State ควบคุม Octave ของเปียโน (ค่าเริ่มต้นคือ 3 = C3)
   const [baseOctave, setBaseOctave] = useState(3);
+
+  // --- State สำหรับ Modal Warm Up ---
+  const [isWarmUpModalOpen, setIsWarmUpModalOpen] = useState(false);
+  const [rangeMode, setRangeMode] = useState('custom'); // 'custom' หรือ 'saved'
+  const [customStartNote, setCustomStartNote] = useState(48); // ค่าเริ่มต้น C3
+  const [customEndNote, setCustomEndNote] = useState(72); // ค่าเริ่มต้น C5
+  const [patternMode, setPatternMode] = useState('scale'); // 'scale' หรือ 'arpeggio'
+
+  // Ref สำหรับเก็บการตั้งค่าที่ถูกเลือกตอนรันจริง
+  const warmupEndNoteRef = useRef(72);
+  const warmupPatternRef = useRef('scale');
 
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(0);
   const pitchBufferRef = useRef([]); 
 
-  const { updateVocalRange } = useContext(AppContext);
+  const { updateVocalRange, lowestNoteNum, highestNoteNum } = useContext(AppContext);
+  const hasSavedRange = lowestNoteNum !== null && highestNoteNum !== null;
 
-  // คำนวณรหัสโน้ตตาม baseOctave แบบไดนามิก
   const startNoteNum = (baseOctave + 1) * 12;
 
   const whiteKeys = [
-    { num: startNoteNum, label: `C${baseOctave}` }, 
-    { num: startNoteNum + 2, label: "D" }, 
-    { num: startNoteNum + 4, label: "E" }, 
-    { num: startNoteNum + 5, label: "F" }, 
-    { num: startNoteNum + 7, label: "G" }, 
-    { num: startNoteNum + 9, label: "A" }, 
-    { num: startNoteNum + 11, label: "B" }, 
-    { num: startNoteNum + 12, label: `C${baseOctave + 1}` }
+    { num: startNoteNum, label: `C${baseOctave}` }, { num: startNoteNum + 2, label: "D" }, 
+    { num: startNoteNum + 4, label: "E" }, { num: startNoteNum + 5, label: "F" }, 
+    { num: startNoteNum + 7, label: "G" }, { num: startNoteNum + 9, label: "A" }, 
+    { num: startNoteNum + 11, label: "B" }, { num: startNoteNum + 12, label: `C${baseOctave + 1}` }
   ];
   
   const blackKeys = [
-    { num: startNoteNum + 1, left: 12.5, label: "C#" }, 
-    { num: startNoteNum + 3, left: 25, label: "D#" }, 
-    { num: startNoteNum + 6, left: 50, label: "F#" }, 
-    { num: startNoteNum + 8, left: 62.5, label: "G#" }, 
-    { num: startNoteNum + 10, left: 75, label: "A#" }, 
-    { num: startNoteNum + 13, left: 100, label: "C#" }
+    { num: startNoteNum + 1, left: 12.5, label: "C#" }, { num: startNoteNum + 3, left: 25, label: "D#" }, 
+    { num: startNoteNum + 6, left: 50, label: "F#" }, { num: startNoteNum + 8, left: 62.5, label: "G#" }, 
+    { num: startNoteNum + 10, left: 75, label: "A#" }, { num: startNoteNum + 13, left: 100, label: "C#" }
   ];
 
-  // ลอจิก: เลื่อนหน้าจอเปียโนตามโน้ตอัตโนมัติ (Auto-scroll)
   useEffect(() => {
     if (isWarmingUp && guideNoteNum !== null) {
       const currentStart = (baseOctave + 1) * 12;
       const currentEnd = currentStart + 12;
-      
-      // ถ้าไกด์โน้ตอยู่นอกเหนือช่วงเปียโนที่แสดง ให้เลื่อน Octave
       if (guideNoteNum < currentStart || guideNoteNum > currentEnd) {
         const newOctave = Math.floor(guideNoteNum / 12) - 1;
         setBaseOctave(newOctave);
@@ -110,26 +108,59 @@ const VocalPage = () => {
     setIsFindingRange(!isFindingRange);
   };
 
-  const toggleWarmUp = () => {
+  // --- ลอจิกการจัดการหน้าจอ Warm Up ---
+  const handleWarmUpClick = () => {
     if (isWarmingUpRef.current) {
+      // ถ้ากำลังรันอยู่ ให้กดหยุด
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
       setIsWarmingUp(false);
       setGuideNoteNum(null);
     } else {
-      isWarmingUpRef.current = true;
-      setIsWarmingUp(true);
-      warmupBaseNoteRef.current = 48; // ให้เริ่มไล่สเกลที่ C3 (โน้ต 48)
-      setBaseOctave(3); // บังคับจอให้กลับมาที่ C3 ก่อนเริ่มวอร์ม
-      runWarmUpCycle();
+      // ถ้ายังไม่รัน ให้เปิด Modal ตั้งค่า
+      setIsWarmUpModalOpen(true);
     }
+  };
+
+  const startConfiguredWarmUp = () => {
+    setIsWarmUpModalOpen(false);
+
+    let startN = 48;
+    let endN = 72;
+
+    if (rangeMode === 'saved' && hasSavedRange) {
+      startN = lowestNoteNum;
+      endN = highestNoteNum;
+    } else {
+      startN = parseInt(customStartNote);
+      endN = parseInt(customEndNote);
+    }
+
+    // ป้องกันกรณีผู้ใช้ตั้งค่าเริ่มสูงกว่าเป้าหมาย
+    if (startN > endN) {
+      const temp = startN;
+      startN = endN;
+      endN = temp;
+    }
+
+    warmupBaseNoteRef.current = startN;
+    warmupEndNoteRef.current = endN;
+    warmupPatternRef.current = patternMode;
+
+    isWarmingUpRef.current = true;
+    setIsWarmingUp(true);
+    
+    // บังคับให้เปียโนเลื่อนไปรอที่โน้ตเริ่มต้น
+    setBaseOctave(Math.floor(startN / 12) - 1);
+    
+    runWarmUpCycle();
   };
 
   const runWarmUpCycle = () => {
     if (!isWarmingUpRef.current) return;
     
-    // ตั้งให้ไล่สูงสุดถึง C5 (72)
-    if (warmupBaseNoteRef.current > 72) { 
+    // เช็คว่าถึงเป้าหมายหรือยัง
+    if (warmupBaseNoteRef.current > warmupEndNoteRef.current) { 
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
       setIsWarmingUp(false);
@@ -140,6 +171,7 @@ const VocalPage = () => {
 
     startWarmUpPattern(
       warmupBaseNoteRef.current,
+      warmupPatternRef.current,
       (playingNote) => {
         setGuideNoteNum(playingNote);
       },
@@ -147,9 +179,9 @@ const VocalPage = () => {
         setGuideNoteNum(null);
         setTimeout(() => {
           if (!isWarmingUpRef.current) return;
-          warmupBaseNoteRef.current += 1;
+          warmupBaseNoteRef.current += 1; // เลื่อนคีย์ขึ้น 1 ครึ่งเสียง
           runWarmUpCycle();
-        }, 1000);
+        }, 1000); // พักหายใจ 1 วินาที
       }
     );
   };
@@ -223,12 +255,20 @@ const VocalPage = () => {
     return cents > 0 ? 'bg-yellow-400' : 'bg-red-400';
   };
 
-  // ฟังก์ชันกดปุ่มเลื่อน Octave
   const shiftOctave = (direction) => {
     setBaseOctave(prev => {
       const newOctave = prev + direction;
-      return Math.max(1, Math.min(6, newOctave)); // จำกัดขอบเขตให้อยู่แค่ C1 ถึง C6
+      return Math.max(1, Math.min(6, newOctave)); 
     });
+  };
+
+  // ฟังก์ชันช่วยสร้างตัวเลือกโน้ตใน Dropdown
+  const renderNoteOptions = () => {
+    const opts = [];
+    for(let i=36; i<=84; i++) { // C2 ถึง C6
+      opts.push(<option key={i} value={i} className="bg-slate-800">{getNoteString(i)}</option>);
+    }
+    return opts;
   };
 
   return (
@@ -304,7 +344,7 @@ const VocalPage = () => {
         </button>
 
         <button 
-          onClick={toggleWarmUp}
+          onClick={handleWarmUpClick}
           className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all duration-300 group ${
             isWarmingUp 
               ? 'bg-neonGreen/10 border-neonGreen shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
@@ -314,7 +354,7 @@ const VocalPage = () => {
           <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
             isWarmingUp ? 'bg-neonGreen text-darkBg' : 'bg-neonGreen/10 text-neonGreen group-hover:bg-neonGreen group-hover:text-darkBg'
           }`}>
-            <Flame size={16} />
+            {isWarmingUp ? <span className="w-3 h-3 bg-darkBg rounded-sm"></span> : <Flame size={16} />}
           </div>
           <span className={`text-[10px] font-bold uppercase tracking-wider ${isWarmingUp ? 'text-neonGreen' : 'text-slate-400'}`}>
             {isWarmingUp ? 'Stop Warm' : 'Warm Up'}
@@ -333,25 +373,18 @@ const VocalPage = () => {
       </div>
 
       <div className="px-6 pb-2 shrink-0 flex flex-col">
-        {/* แถบควบคุมเลื่อนลิ่มเปียโน (Octave Controls) */}
         <div className="flex justify-between items-center px-4 mb-2">
           <button 
-            onClick={() => shiftOctave(-1)}
-            disabled={baseOctave <= 1}
+            onClick={() => shiftOctave(-1)} disabled={baseOctave <= 1}
             className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft size={16} />
-          </button>
+          ><ChevronLeft size={16} /></button>
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
             Octave {baseOctave} <span className="lowercase text-slate-600">(C{baseOctave} - C{baseOctave + 1})</span>
           </span>
           <button 
-            onClick={() => shiftOctave(1)}
-            disabled={baseOctave >= 6}
+            onClick={() => shiftOctave(1)} disabled={baseOctave >= 6}
             className="p-1 rounded bg-slate-800 text-slate-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronRight size={16} />
-          </button>
+          ><ChevronRight size={16} /></button>
         </div>
 
         <div className="relative w-full h-20 bg-slate-900 border-x-2 border-t-2 border-b-4 border-slate-800 rounded-t-lg rounded-b-xl flex overflow-hidden select-none">
@@ -359,16 +392,11 @@ const VocalPage = () => {
             const active = isKeyActive(key.num);
             return (
               <div 
-                key={i} 
-                onPointerDown={() => playGuideNote(key.num)}
+                key={i} onPointerDown={() => playGuideNote(key.num)}
                 className={`flex-1 relative border-r border-slate-300 rounded-b flex items-end justify-center pb-1 transition-colors duration-150 cursor-pointer active:bg-neonBlue/30 ${
                   active ? 'bg-neonBlue shadow-[inset_0_-5px_15px_rgba(34,211,238,0.6)]' : 'bg-slate-200'
                 }`}
-              >
-                <span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-slate-500'}`}>
-                  {key.label}
-                </span>
-              </div>
+              ><span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-slate-500'}`}>{key.label}</span></div>
             );
           })}
 
@@ -376,24 +404,99 @@ const VocalPage = () => {
             const active = isKeyActive(key.num);
             return (
               <div 
-                key={i} 
-                onPointerDown={() => playGuideNote(key.num)}
+                key={i} onPointerDown={() => playGuideNote(key.num)}
                 className={`absolute top-0 w-[8%] h-[60%] rounded-b shadow-md transition-colors duration-150 z-10 flex items-end justify-center pb-1 cursor-pointer active:bg-neonBlue/60 ${
                   active ? 'bg-neonBlue shadow-[0_5px_15px_rgba(34,211,238,0.5)]' : 'bg-slate-900 border-x border-b border-black'
                 }`}
-                style={{ 
-                  left: `${key.left}%`, 
-                  transform: 'translateX(-50%)'
-                }}
-              >
-                <span className={`text-[7px] font-bold ${active ? 'text-white' : 'text-slate-400'}`}>
-                  {key.label}
-                </span>
-              </div>
+                style={{ left: `${key.left}%`, transform: 'translateX(-50%)' }}
+              ><span className={`text-[7px] font-bold ${active ? 'text-white' : 'text-slate-400'}`}>{key.label}</span></div>
             );
           })}
         </div>
       </div>
+
+      {/* --- Modal ตั้งค่า Warm Up --- */}
+      {isWarmUpModalOpen && (
+        <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-4 animate-in fade-in duration-200">
+          <div className="bg-darkBg border border-slate-700 rounded-3xl p-6 shadow-2xl mb-24 relative overflow-hidden">
+            
+            <div className="absolute top-0 right-0 w-32 h-32 bg-neonGreen/5 blur-[50px] rounded-full pointer-events-none"></div>
+
+            <div className="flex justify-between items-center mb-6 relative z-10">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-neonGreen/10 text-neonGreen rounded-lg"><Settings2 size={20}/></div>
+                <h2 className="text-lg font-bold text-white">Warm Up Setup</h2>
+              </div>
+              <button onClick={() => setIsWarmUpModalOpen(false)} className="p-2 text-slate-400 hover:text-white bg-slate-800 rounded-full"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-6 relative z-10">
+              
+              {/* Section 1: ขอบเขตเสียง */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">1. Target Range</label>
+                <div className="flex flex-col gap-3">
+                  
+                  {/* Option 1: กำหนดเอง */}
+                  <label className={`flex flex-col p-3 rounded-xl border transition-colors cursor-pointer ${rangeMode === 'custom' ? 'bg-neonBlue/10 border-neonBlue' : 'bg-darkCard border-slate-800'}`}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <input type="radio" name="rangeMode" value="custom" checked={rangeMode === 'custom'} onChange={() => setRangeMode('custom')} className="accent-neonBlue" />
+                      <span className="text-sm font-bold text-white">Custom Range</span>
+                    </div>
+                    {rangeMode === 'custom' && (
+                      <div className="flex items-center gap-2 pl-7 mt-1">
+                        <select value={customStartNote} onChange={(e) => setCustomStartNote(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg text-xs text-white px-2 py-1.5 focus:outline-none focus:border-neonBlue">
+                          {renderNoteOptions()}
+                        </select>
+                        <span className="text-slate-500 text-xs">to</span>
+                        <select value={customEndNote} onChange={(e) => setCustomEndNote(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-lg text-xs text-white px-2 py-1.5 focus:outline-none focus:border-neonBlue">
+                          {renderNoteOptions()}
+                        </select>
+                      </div>
+                    )}
+                  </label>
+
+                  {/* Option 2: อิงตามโปรไฟล์ */}
+                  <label className={`flex flex-col p-3 rounded-xl border transition-colors ${!hasSavedRange ? 'opacity-50 cursor-not-allowed bg-darkCard border-slate-800' : rangeMode === 'saved' ? 'bg-neonGreen/10 border-neonGreen cursor-pointer' : 'bg-darkCard border-slate-800 cursor-pointer'}`}>
+                    <div className="flex items-center gap-3">
+                      <input type="radio" name="rangeMode" value="saved" checked={rangeMode === 'saved'} disabled={!hasSavedRange} onChange={() => setRangeMode('saved')} className="accent-neonGreen" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-white">My Vocal Profile</span>
+                        {hasSavedRange ? (
+                           <span className="text-xs text-neonGreen font-medium">{getNoteString(lowestNoteNum)} — {getNoteString(highestNoteNum)}</span>
+                        ) : (
+                           <span className="text-[10px] text-rose-400 font-medium mt-0.5">Please measure Vocal Range first</span>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+
+                </div>
+              </div>
+
+              {/* Section 2: รูปแบบแพทเทิร์น */}
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">2. Exercise Pattern</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={() => setPatternMode('scale')} className={`flex flex-col items-start p-3 rounded-xl border transition-colors text-left ${patternMode === 'scale' ? 'bg-purple-500/10 border-purple-500' : 'bg-darkCard border-slate-800'}`}>
+                    <span className={`text-sm font-bold mb-1 ${patternMode === 'scale' ? 'text-purple-400' : 'text-white'}`}>5-Tone Scale</span>
+                    <span className="text-[9px] text-slate-500 tracking-wider">1 - 2 - 3 - 4 - 5</span>
+                  </button>
+                  <button onClick={() => setPatternMode('arpeggio')} className={`flex flex-col items-start p-3 rounded-xl border transition-colors text-left ${patternMode === 'arpeggio' ? 'bg-purple-500/10 border-purple-500' : 'bg-darkCard border-slate-800'}`}>
+                    <span className={`text-sm font-bold mb-1 ${patternMode === 'arpeggio' ? 'text-purple-400' : 'text-white'}`}>Arpeggio</span>
+                    <span className="text-[9px] text-slate-500 tracking-wider">1 - 3 - 5 - 8</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+            <button onClick={startConfiguredWarmUp} className="w-full mt-8 py-4 bg-neonGreen text-darkBg font-black tracking-widest rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+              <Play fill="currentColor" size={16}/> START WARM UP
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

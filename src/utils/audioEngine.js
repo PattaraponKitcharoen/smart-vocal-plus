@@ -162,40 +162,39 @@ export const playGuideNote = (noteNumber, duration = 1.5) => {
   osc.stop(now + duration);
 };
 
-// --- เพิ่มระบบเครื่องยนต์ Warm Up (ต่อท้ายไฟล์) ---
+// --- อัปเดตระบบเครื่องยนต์ Warm Up ---
 let warmupTimeoutId = null;
 let isWarmUpActive = false;
 
-// ฟังก์ชันรันสเกล โด-เร-มี-ฟา-ซอล-ฟา-มี-เร-โด
-export const startWarmUpPattern = (baseNote, onNotePlay, onPatternEnd) => {
+// เพิ่มพารามิเตอร์ patternType เข้ามา
+export const startWarmUpPattern = (baseNote, patternType, onNotePlay, onPatternEnd) => {
   isWarmUpActive = true;
-  // ระยะห่างของโน้ต Major Scale (หน่วยเป็นครึ่งเสียง: 0=โด, 2=เร, 4=มี, 5=ฟา, 7=ซอล)
-  const intervals = [0, 2, 4, 5, 7, 5, 4, 2, 0];
+  
+  // กำหนดแพทเทิร์นบันไดเสียง
+  const intervals = patternType === 'arpeggio' 
+    ? [0, 4, 7, 12, 7, 4, 0] // Arpeggio (1-3-5-8-5-3-1)
+    : [0, 2, 4, 5, 7, 5, 4, 2, 0]; // 5-Tone Scale (1-2-3-4-5-4-3-2-1)
+    
   let step = 0;
   
-  const bpm = 120; // ความเร็วของการเปลี่ยนโน้ต
+  // Arpeggio โน้ตกระโดดไกล อาจจะปรับจังหวะให้ช้าลงนิดนึงเพื่อให้ร้องตามทัน
+  const bpm = patternType === 'arpeggio' ? 100 : 120; 
   const beatMs = (60 / bpm) * 1000;
 
   const playNext = () => {
-    // ถ้าโดนสั่งหยุดระหว่างทาง ให้ยกเลิกทันที
     if (!isWarmUpActive) return;
 
-    // ถ้าเล่นครบสเกลแล้ว ให้เรียกฟังก์ชันจบ (พักหายใจ)
     if (step >= intervals.length) {
       if (onPatternEnd) onPatternEnd();
       return;
     }
 
     const currentNote = baseNote + intervals[step];
-    
-    // สั่งเล่นเสียง (ยืดหางเสียงให้ยาวกว่าจังหวะนิดนึงเพื่อให้เสียงเชื่อมกัน / Legato)
     playGuideNote(currentNote, (beatMs / 1000) * 1.5);
     
-    // ส่งข้อมูลกลับไปให้ UI เปียโนสว่าง
     if (onNotePlay) onNotePlay(currentNote);
 
     step++;
-    // ตั้งคิวเล่นโน้ตตัวถัดไป
     warmupTimeoutId = setTimeout(playNext, beatMs);
   };
 
