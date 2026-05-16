@@ -71,7 +71,14 @@ const VocalPage = () => {
   }, [activeNoteNum, isFindingRange, updateVocalRange]);
 
   useEffect(() => {
-    return () => { stopWarmUpPattern(); }
+    // Cleanup Function: จะทำงานอัตโนมัติทันทีที่ผู้ใช้กดเปลี่ยนไปหน้าอื่น (Unmount)
+    return () => { 
+      stopWarmUpPattern(); // 1. หยุดลอจิกวอร์มอัปและคิวเสียงที่ค้างอยู่
+      stopAudio(); // 2. สั่งปิดไมค์ (ที่คุณเพิ่งเอาฟังก์ชันกลับมา)
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current); // 3. หยุดการวาด Canvas ไม่งั้นจะกินแรมเครื่อง
+      }
+    };
   }, []);
 
   const toggleMic = async () => {
