@@ -94,6 +94,10 @@ const SheetPage = () => {
       await db.sheets.delete(id);
       loadSheets();
       
+      if (calculateStorage) {
+        await calculateStorage();
+      }
+      
       // ล้าง Filter ที่อาจจะค้างอยู่ถ้าลบเพลงสุดท้ายของศิลปินนั้นทิ้งไป
       setSelectedArtists([]);
       setSelectedKeys([]);
