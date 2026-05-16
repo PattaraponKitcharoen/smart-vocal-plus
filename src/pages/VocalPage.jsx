@@ -223,7 +223,7 @@ const VocalPage = () => {
               runWarmUpCycle(); 
             }, 1200);
 
-          }, 400);
+          }, 550);
 
         }, 800);
       }

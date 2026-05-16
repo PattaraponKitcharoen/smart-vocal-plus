@@ -24,7 +24,7 @@ export const AppProvider = ({ children }) => {
   const [highestNoteNum, setHighestNoteNum] = useState(null);
   const [sheetCount, setSheetCount] = useState(0);
   const [storageUsed, setStorageUsed] = useState("0.0 MB");
-  const [userProfile, setUserProfile] = useState({ name: "Phattharaphon K.", rank: "Advanced Singer", profilePic: null });
+  const [userProfile, setUserProfile] = useState({ name: "User", rank: "Singer", profilePic: null });
 
   useEffect(() => {
     loadInitialData();
