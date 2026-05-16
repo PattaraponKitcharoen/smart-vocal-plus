@@ -134,3 +134,33 @@ export const getCentsOffPitch = (frequency, noteNumber) => {
   // สมการเปรียบเทียบระยะห่างของความถี่
   return Math.floor(1200 * Math.log2(frequency / standardFreq));
 };
+
+export const playGuideNote = (noteNumber) => {
+  // เช็คว่ามี AudioContext หรือยัง
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioContext.state === 'suspended') audioContext.resume();
+
+  // คำนวณความถี่จาก MIDI Note Number (A4 = 69 = 440Hz)
+  const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
+  
+  const osc = audioContext.createOscillator();
+  const gainNode = audioContext.createGain();
+  
+  osc.connect(gainNode);
+  gainNode.connect(audioContext.destination);
+  
+  // ใช้คลื่น Triangle ให้เสียงมีความกังวานคล้ายเปียโนไฟฟ้า/คีย์บอร์ด
+  osc.type = 'triangle'; 
+  osc.frequency.value = freq;
+  
+  // สร้าง Envelope (ADSR) ให้เสียงค่อยๆ จางหายไป ไม่ตัดฉับให้เจ็บหู
+  const now = audioContext.currentTime;
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(0.6, now + 0.02); // Attack เร็ว
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.5); // Decay ค่อยๆ เบาลงใน 1.5 วิ
+  
+  osc.start(now);
+  osc.stop(now + 1.5);
+};

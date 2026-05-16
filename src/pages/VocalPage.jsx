@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useContext } from 'react';
 import { Mic, MicOff, Flame, Target, Activity } from 'lucide-react';
 import { 
   startAudio, stopAudio, getAudioData, autoCorrelate, 
-  noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch 
+  noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch,
+  playGuideNote // นำเข้าฟังก์ชันเล่นเสียง
 } from '../utils/audioEngine';
 import { AppContext } from '../contexts/AppContext';
 
@@ -20,7 +21,6 @@ const VocalPage = () => {
   const lastUpdateRef = useRef(0);
   const pitchBufferRef = useRef([]); 
 
-  // ดึงฟังก์ชันอัปเดต Range มาจาก Context
   const { updateVocalRange } = useContext(AppContext);
 
   const whiteKeys = [
@@ -35,7 +35,6 @@ const VocalPage = () => {
     { n: "A#", num: 58, left: 75, label: "A#" }, { n: "C#", num: 61, left: 100, label: "C#" }
   ];
 
-  // อัปเดต Vocal Range เมื่อเปิดโหมด Find Range และมีเสียงเข้า
   useEffect(() => {
     if (isFindingRange && activeNoteNum !== null) {
       updateVocalRange(activeNoteNum);
@@ -233,14 +232,16 @@ const VocalPage = () => {
       </div>
 
       <div className="px-6 pb-2 shrink-0">
-        <div className="relative w-full h-20 bg-slate-900 border-x-2 border-t-2 border-b-4 border-slate-800 rounded-t-lg rounded-b-xl flex overflow-hidden">
+        <div className="relative w-full h-20 bg-slate-900 border-x-2 border-t-2 border-b-4 border-slate-800 rounded-t-lg rounded-b-xl flex overflow-hidden select-none">
           
+          {/* White Keys */}
           {whiteKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
               <div 
                 key={i} 
-                className={`flex-1 relative border-r border-slate-300 rounded-b flex items-end justify-center pb-1 transition-colors duration-150 ${
+                onPointerDown={() => playGuideNote(key.num)}
+                className={`flex-1 relative border-r border-slate-300 rounded-b flex items-end justify-center pb-1 transition-colors duration-150 cursor-pointer active:bg-neonBlue/30 ${
                   active ? 'bg-neonBlue shadow-[inset_0_-5px_15px_rgba(34,211,238,0.6)]' : 'bg-slate-200'
                 }`}
               >
@@ -251,12 +252,14 @@ const VocalPage = () => {
             );
           })}
 
+          {/* Black Keys */}
           {blackKeys.map((key, i) => {
             const active = isKeyActive(key.num);
             return (
               <div 
                 key={i} 
-                className={`absolute top-0 w-[8%] h-[60%] rounded-b shadow-md transition-colors duration-150 z-10 flex items-end justify-center pb-1 ${
+                onPointerDown={() => playGuideNote(key.num)}
+                className={`absolute top-0 w-[8%] h-[60%] rounded-b shadow-md transition-colors duration-150 z-10 flex items-end justify-center pb-1 cursor-pointer active:bg-neonBlue/60 ${
                   active ? 'bg-neonBlue shadow-[0_5px_15px_rgba(34,211,238,0.5)]' : 'bg-slate-900 border-x border-b border-black'
                 }`}
                 style={{ 
