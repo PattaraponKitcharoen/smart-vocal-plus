@@ -16,11 +16,10 @@ const VocalPage = () => {
   
   const [isFindingRange, setIsFindingRange] = useState(false);
   
-  // State สำหรับระบบ Warm Up
   const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [guideNoteNum, setGuideNoteNum] = useState(null);
   const isWarmingUpRef = useRef(false);
-  const warmupBaseNoteRef = useRef(48); // ตั้งต้นที่ C3
+  const warmupBaseNoteRef = useRef(48);
 
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
@@ -47,7 +46,6 @@ const VocalPage = () => {
     }
   }, [activeNoteNum, isFindingRange, updateVocalRange]);
 
-  // คลีนอัปเมื่อย้ายหน้า
   useEffect(() => {
     return () => { stopWarmUpPattern(); }
   }, []);
@@ -84,19 +82,16 @@ const VocalPage = () => {
     setIsFindingRange(!isFindingRange);
   };
 
-  // --- ลอจิกการเล่น Warm Up ---
   const toggleWarmUp = () => {
     if (isWarmingUpRef.current) {
-      // สั่งหยุด
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
       setIsWarmingUp(false);
       setGuideNoteNum(null);
     } else {
-      // สั่งเริ่ม
       isWarmingUpRef.current = true;
       setIsWarmingUp(true);
-      warmupBaseNoteRef.current = 48; // ให้เริ่มไล่สเกลที่ C3 เสมอ
+      warmupBaseNoteRef.current = 48;
       runWarmUpCycle();
     }
   };
@@ -104,7 +99,6 @@ const VocalPage = () => {
   const runWarmUpCycle = () => {
     if (!isWarmingUpRef.current) return;
     
-    // ตั้งให้ไล่สูงสุดถึงแค่โน้ต 60 (C4) เพื่อไม่ให้หลุดจอมือถือ
     if (warmupBaseNoteRef.current > 60) { 
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
@@ -117,15 +111,13 @@ const VocalPage = () => {
     startWarmUpPattern(
       warmupBaseNoteRef.current,
       (playingNote) => {
-        setGuideNoteNum(playingNote); // ให้ไฟเปียโนสว่างตามโน้ตที่ดัง
+        setGuideNoteNum(playingNote);
       },
       () => {
-        // เมื่อจบสเกล ปิดไฟเปียโน
         setGuideNoteNum(null);
-        // พักหายใจ 1 วินาที แล้วรันสเกลถัดไป
         setTimeout(() => {
           if (!isWarmingUpRef.current) return;
-          warmupBaseNoteRef.current += 1; // ขยับคีย์ขึ้น +1 ครึ่งเสียง
+          warmupBaseNoteRef.current += 1;
           runWarmUpCycle();
         }, 1000);
       }
@@ -189,11 +181,11 @@ const VocalPage = () => {
     animationRef.current = requestAnimationFrame(processAudio);
   };
 
-  // ปรับการไฮไลท์เปียโน: ให้ความสำคัญกับ Guide Note ก่อน ถ้าไม่มีค่อยแสดงเสียงไมค์
+  // --- จุดที่แก้ไข: เปลี่ยนมาเช็คแบบ Exact Match ---
   const isKeyActive = (keyNum) => {
-    if (guideNoteNum !== null) return guideNoteNum % 12 === keyNum % 12;
+    if (guideNoteNum !== null) return guideNoteNum === keyNum;
     if (activeNoteNum === null) return false;
-    return activeNoteNum % 12 === keyNum % 12;
+    return activeNoteNum === keyNum;
   };
 
   const getTuningColor = () => {
@@ -274,7 +266,6 @@ const VocalPage = () => {
           </span>
         </button>
 
-        {/* ปุ่ม Warm Up ปรับให้สลับสถานะได้ */}
         <button 
           onClick={toggleWarmUp}
           className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all duration-300 group ${
