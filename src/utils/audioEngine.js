@@ -41,9 +41,9 @@ export const startAudio = async () => {
 
 export const stopAudio = () => {
   // เช็คก่อนว่ามี audioContext ไหม และสถานะต้องยังไม่ถูกปิด
-  // if (audioContext && audioContext.state !== 'closed') {
-  //   audioContext.close();
-  // }
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close();
+  }
   
   if (microphone) {
     // สั่งปิดการทำงานของไมค์ที่ไฟขึ้นสีแดงบนเบราว์เซอร์

@@ -307,6 +307,13 @@ const VocalPage = () => {
     return opts;
   };
 
+  // ฟังก์ชันเช็คก่อนเล่นเสียงเปียโน
+  const handlePianoClick = (noteNum) => {
+    // ถ้ากำลังหาเรนจ์เสียง หรือ กำลังวอร์มอัปอยู่ ให้บล็อกการกดเปียโน (กัน user มือบอน)
+    if (isFindingRange || isWarmingUp) return; 
+    playGuideNote(noteNum);
+  };
+
   return (
     <div className="flex flex-col h-full bg-darkBg text-white overflow-hidden relative">
       
@@ -428,8 +435,14 @@ const VocalPage = () => {
             const active = isKeyActive(key.num);
             return (
               <div 
-                key={i} onPointerDown={() => playGuideNote(key.num)}
-                className={`flex-1 relative border-r border-slate-300 rounded-b flex items-end justify-center pb-1 transition-colors duration-150 cursor-pointer active:bg-neonBlue/30 ${
+                key={i} 
+                onPointerDown={() => {
+                  if (isFindingRange || isWarmingUp) return;
+                  playGuideNote(key.num);
+                }}
+                className={`flex-1 relative border-r border-slate-300 rounded-b flex items-end justify-center pb-1 transition-colors duration-150 ${
+                  isFindingRange || isWarmingUp ? 'cursor-not-allowed' : 'cursor-pointer active:bg-neonBlue/30'
+                } ${
                   active ? 'bg-neonBlue shadow-[inset_0_-5px_15px_rgba(34,211,238,0.6)]' : 'bg-slate-200'
                 }`}
               ><span className={`text-[9px] font-bold ${active ? 'text-white' : 'text-slate-500'}`}>{key.label}</span></div>
@@ -440,8 +453,14 @@ const VocalPage = () => {
             const active = isKeyActive(key.num);
             return (
               <div 
-                key={i} onPointerDown={() => playGuideNote(key.num)}
-                className={`absolute top-0 w-[8%] h-[60%] rounded-b shadow-md transition-colors duration-150 z-10 flex items-end justify-center pb-1 cursor-pointer active:bg-neonBlue/60 ${
+                key={i} 
+                onPointerDown={() => {
+                  if (isFindingRange || isWarmingUp) return;
+                  playGuideNote(key.num);
+                }}
+                className={`absolute top-0 w-[8%] h-[60%] rounded-b shadow-md transition-colors duration-150 z-10 flex items-end justify-center pb-1 ${
+                  isFindingRange || isWarmingUp ? 'cursor-not-allowed' : 'cursor-pointer active:bg-neonBlue/60'
+                } ${
                   active ? 'bg-neonBlue shadow-[0_5px_15px_rgba(34,211,238,0.5)]' : 'bg-slate-900 border-x border-b border-black'
                 }`}
                 style={{ left: `${key.left}%`, transform: 'translateX(-50%)' }}
