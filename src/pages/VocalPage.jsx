@@ -3,7 +3,7 @@ import { Mic, MicOff, Flame, Target, Activity } from 'lucide-react';
 import { 
   startAudio, stopAudio, getAudioData, autoCorrelate, 
   noteFromPitch, getNoteString, getSampleRate, getCentsOffPitch,
-  playGuideNote // นำเข้าฟังก์ชันเล่นเสียง
+  playGuideNote, startWarmUpPattern, stopWarmUpPattern 
 } from '../utils/audioEngine';
 import { AppContext } from '../contexts/AppContext';
 
@@ -16,6 +16,12 @@ const VocalPage = () => {
   
   const [isFindingRange, setIsFindingRange] = useState(false);
   
+  // State สำหรับระบบ Warm Up
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
+  const [guideNoteNum, setGuideNoteNum] = useState(null);
+  const isWarmingUpRef = useRef(false);
+  const warmupBaseNoteRef = useRef(48); // ตั้งต้นที่ C3
+
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const lastUpdateRef = useRef(0);
@@ -40,6 +46,11 @@ const VocalPage = () => {
       updateVocalRange(activeNoteNum);
     }
   }, [activeNoteNum, isFindingRange, updateVocalRange]);
+
+  // คลีนอัปเมื่อย้ายหน้า
+  useEffect(() => {
+    return () => { stopWarmUpPattern(); }
+  }, []);
 
   const toggleMic = async () => {
     if (isListening) {
@@ -71,6 +82,54 @@ const VocalPage = () => {
       }
     }
     setIsFindingRange(!isFindingRange);
+  };
+
+  // --- ลอจิกการเล่น Warm Up ---
+  const toggleWarmUp = () => {
+    if (isWarmingUpRef.current) {
+      // สั่งหยุด
+      stopWarmUpPattern();
+      isWarmingUpRef.current = false;
+      setIsWarmingUp(false);
+      setGuideNoteNum(null);
+    } else {
+      // สั่งเริ่ม
+      isWarmingUpRef.current = true;
+      setIsWarmingUp(true);
+      warmupBaseNoteRef.current = 48; // ให้เริ่มไล่สเกลที่ C3 เสมอ
+      runWarmUpCycle();
+    }
+  };
+
+  const runWarmUpCycle = () => {
+    if (!isWarmingUpRef.current) return;
+    
+    // ตั้งให้ไล่สูงสุดถึงแค่โน้ต 60 (C4) เพื่อไม่ให้หลุดจอมือถือ
+    if (warmupBaseNoteRef.current > 60) { 
+      stopWarmUpPattern();
+      isWarmingUpRef.current = false;
+      setIsWarmingUp(false);
+      setGuideNoteNum(null);
+      alert("วอร์มเสียงเสร็จสิ้นครับ เยี่ยมมาก!");
+      return;
+    }
+
+    startWarmUpPattern(
+      warmupBaseNoteRef.current,
+      (playingNote) => {
+        setGuideNoteNum(playingNote); // ให้ไฟเปียโนสว่างตามโน้ตที่ดัง
+      },
+      () => {
+        // เมื่อจบสเกล ปิดไฟเปียโน
+        setGuideNoteNum(null);
+        // พักหายใจ 1 วินาที แล้วรันสเกลถัดไป
+        setTimeout(() => {
+          if (!isWarmingUpRef.current) return;
+          warmupBaseNoteRef.current += 1; // ขยับคีย์ขึ้น +1 ครึ่งเสียง
+          runWarmUpCycle();
+        }, 1000);
+      }
+    );
   };
 
   const resetStats = () => {
@@ -130,7 +189,9 @@ const VocalPage = () => {
     animationRef.current = requestAnimationFrame(processAudio);
   };
 
+  // ปรับการไฮไลท์เปียโน: ให้ความสำคัญกับ Guide Note ก่อน ถ้าไม่มีค่อยแสดงเสียงไมค์
   const isKeyActive = (keyNum) => {
+    if (guideNoteNum !== null) return guideNoteNum % 12 === keyNum % 12;
     if (activeNoteNum === null) return false;
     return activeNoteNum % 12 === keyNum % 12;
   };
@@ -213,11 +274,23 @@ const VocalPage = () => {
           </span>
         </button>
 
-        <button className="flex flex-col items-center gap-1.5 p-3 bg-darkCard border border-slate-800 rounded-2xl hover:border-neonGreen transition-colors group">
-          <div className="w-8 h-8 rounded-full bg-neonGreen/10 flex items-center justify-center text-neonGreen group-hover:bg-neonGreen group-hover:text-darkBg transition-all">
+        {/* ปุ่ม Warm Up ปรับให้สลับสถานะได้ */}
+        <button 
+          onClick={toggleWarmUp}
+          className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all duration-300 group ${
+            isWarmingUp 
+              ? 'bg-neonGreen/10 border-neonGreen shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+              : 'bg-darkCard border-slate-800 hover:border-neonGreen'
+          }`}
+        >
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+            isWarmingUp ? 'bg-neonGreen text-darkBg' : 'bg-neonGreen/10 text-neonGreen group-hover:bg-neonGreen group-hover:text-darkBg'
+          }`}>
             <Flame size={16} />
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Warm Up</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wider ${isWarmingUp ? 'text-neonGreen' : 'text-slate-400'}`}>
+            {isWarmingUp ? 'Stop Warm' : 'Warm Up'}
+          </span>
         </button>
       </div>
 

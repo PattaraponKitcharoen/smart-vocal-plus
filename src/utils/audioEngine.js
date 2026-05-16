@@ -135,32 +135,74 @@ export const getCentsOffPitch = (frequency, noteNumber) => {
   return Math.floor(1200 * Math.log2(frequency / standardFreq));
 };
 
-export const playGuideNote = (noteNumber) => {
-  // เช็คว่ามี AudioContext หรือยัง
+// --- อัปเดตฟังก์ชัน playGuideNote เดิมให้รองรับการตั้งความยาวเสียง (Duration) ---
+export const playGuideNote = (noteNumber, duration = 1.5) => {
   if (!audioContext) {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
   if (audioContext.state === 'suspended') audioContext.resume();
 
-  // คำนวณความถี่จาก MIDI Note Number (A4 = 69 = 440Hz)
   const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
-  
   const osc = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
   
   osc.connect(gainNode);
   gainNode.connect(audioContext.destination);
   
-  // ใช้คลื่น Triangle ให้เสียงมีความกังวานคล้ายเปียโนไฟฟ้า/คีย์บอร์ด
   osc.type = 'triangle'; 
   osc.frequency.value = freq;
   
-  // สร้าง Envelope (ADSR) ให้เสียงค่อยๆ จางหายไป ไม่ตัดฉับให้เจ็บหู
   const now = audioContext.currentTime;
   gainNode.gain.setValueAtTime(0, now);
-  gainNode.gain.linearRampToValueAtTime(0.6, now + 0.02); // Attack เร็ว
-  gainNode.gain.exponentialRampToValueAtTime(0.001, now + 1.5); // Decay ค่อยๆ เบาลงใน 1.5 วิ
+  gainNode.gain.linearRampToValueAtTime(0.6, now + 0.02); 
+  // เปลี่ยนให้ค่อยๆ เบาลงตาม duration ที่รับเข้ามา
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration); 
   
   osc.start(now);
-  osc.stop(now + 1.5);
+  osc.stop(now + duration);
+};
+
+// --- เพิ่มระบบเครื่องยนต์ Warm Up (ต่อท้ายไฟล์) ---
+let warmupTimeoutId = null;
+let isWarmUpActive = false;
+
+// ฟังก์ชันรันสเกล โด-เร-มี-ฟา-ซอล-ฟา-มี-เร-โด
+export const startWarmUpPattern = (baseNote, onNotePlay, onPatternEnd) => {
+  isWarmUpActive = true;
+  // ระยะห่างของโน้ต Major Scale (หน่วยเป็นครึ่งเสียง: 0=โด, 2=เร, 4=มี, 5=ฟา, 7=ซอล)
+  const intervals = [0, 2, 4, 5, 7, 5, 4, 2, 0];
+  let step = 0;
+  
+  const bpm = 120; // ความเร็วของการเปลี่ยนโน้ต
+  const beatMs = (60 / bpm) * 1000;
+
+  const playNext = () => {
+    // ถ้าโดนสั่งหยุดระหว่างทาง ให้ยกเลิกทันที
+    if (!isWarmUpActive) return;
+
+    // ถ้าเล่นครบสเกลแล้ว ให้เรียกฟังก์ชันจบ (พักหายใจ)
+    if (step >= intervals.length) {
+      if (onPatternEnd) onPatternEnd();
+      return;
+    }
+
+    const currentNote = baseNote + intervals[step];
+    
+    // สั่งเล่นเสียง (ยืดหางเสียงให้ยาวกว่าจังหวะนิดนึงเพื่อให้เสียงเชื่อมกัน / Legato)
+    playGuideNote(currentNote, (beatMs / 1000) * 1.5);
+    
+    // ส่งข้อมูลกลับไปให้ UI เปียโนสว่าง
+    if (onNotePlay) onNotePlay(currentNote);
+
+    step++;
+    // ตั้งคิวเล่นโน้ตตัวถัดไป
+    warmupTimeoutId = setTimeout(playNext, beatMs);
+  };
+
+  playNext();
+};
+
+export const stopWarmUpPattern = () => {
+  isWarmUpActive = false;
+  if (warmupTimeoutId) clearTimeout(warmupTimeoutId);
 };
