@@ -21,14 +21,12 @@ const VocalPage = () => {
   const warmupBaseNoteRef = useRef(48);
   const [baseOctave, setBaseOctave] = useState(3);
 
-  // --- State สำหรับ Modal Warm Up ---
   const [isWarmUpModalOpen, setIsWarmUpModalOpen] = useState(false);
-  const [rangeMode, setRangeMode] = useState('custom'); // 'custom' หรือ 'saved'
-  const [customStartNote, setCustomStartNote] = useState(48); // ค่าเริ่มต้น C3
-  const [customEndNote, setCustomEndNote] = useState(72); // ค่าเริ่มต้น C5
-  const [patternMode, setPatternMode] = useState('scale'); // 'scale' หรือ 'arpeggio'
+  const [rangeMode, setRangeMode] = useState('custom'); 
+  const [customStartNote, setCustomStartNote] = useState(48); 
+  const [customEndNote, setCustomEndNote] = useState(72); 
+  const [patternMode, setPatternMode] = useState('scale'); 
 
-  // Ref สำหรับเก็บการตั้งค่าที่ถูกเลือกตอนรันจริง
   const warmupEndNoteRef = useRef(72);
   const warmupPatternRef = useRef('scale');
 
@@ -108,16 +106,13 @@ const VocalPage = () => {
     setIsFindingRange(!isFindingRange);
   };
 
-  // --- ลอจิกการจัดการหน้าจอ Warm Up ---
   const handleWarmUpClick = () => {
     if (isWarmingUpRef.current) {
-      // ถ้ากำลังรันอยู่ ให้กดหยุด
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
       setIsWarmingUp(false);
       setGuideNoteNum(null);
     } else {
-      // ถ้ายังไม่รัน ให้เปิด Modal ตั้งค่า
       setIsWarmUpModalOpen(true);
     }
   };
@@ -136,7 +131,6 @@ const VocalPage = () => {
       endN = parseInt(customEndNote);
     }
 
-    // ป้องกันกรณีผู้ใช้ตั้งค่าเริ่มสูงกว่าเป้าหมาย
     if (startN > endN) {
       const temp = startN;
       startN = endN;
@@ -150,7 +144,6 @@ const VocalPage = () => {
     isWarmingUpRef.current = true;
     setIsWarmingUp(true);
     
-    // บังคับให้เปียโนเลื่อนไปรอที่โน้ตเริ่มต้น
     setBaseOctave(Math.floor(startN / 12) - 1);
     
     runWarmUpCycle();
@@ -159,7 +152,6 @@ const VocalPage = () => {
   const runWarmUpCycle = () => {
     if (!isWarmingUpRef.current) return;
     
-    // เช็คว่าถึงเป้าหมายหรือยัง
     if (warmupBaseNoteRef.current > warmupEndNoteRef.current) { 
       stopWarmUpPattern();
       isWarmingUpRef.current = false;
@@ -177,11 +169,46 @@ const VocalPage = () => {
       },
       () => {
         setGuideNoteNum(null);
+
+        if (warmupBaseNoteRef.current >= warmupEndNoteRef.current) {
+          setTimeout(() => {
+            if (!isWarmingUpRef.current) return;
+            warmupBaseNoteRef.current += 1;
+            runWarmUpCycle();
+          }, 800); // ปรับลดเวลาตอนจบคีย์สุดท้าย
+          return;
+        }
+
+        // --- จุดที่ต้องปรับเวลา (รอยต่อเปลี่ยนคีย์) ---
+        
+        // 1. ปรับจาก 1500 -> 800 (พัก 0.8 วิ หลังร้องสเกลจบ)
         setTimeout(() => {
           if (!isWarmingUpRef.current) return;
-          warmupBaseNoteRef.current += 1; // เลื่อนคีย์ขึ้น 1 ครึ่งเสียง
-          runWarmUpCycle();
-        }, 1000); // พักหายใจ 1 วินาที
+          
+          const currentKeyRoot = warmupBaseNoteRef.current;
+          const nextKeyRoot = currentKeyRoot + 1;
+
+          playGuideNote(currentKeyRoot, 0.4); // ลดหางเสียงไกด์ลงเหลือ 0.4 วิ
+          setGuideNoteNum(currentKeyRoot);
+
+          // 2. ปรับจาก 500 -> 400 (ระยะห่างระหว่างเสียงไกด์ C และ C#)
+          setTimeout(() => {
+            if (!isWarmingUpRef.current) return;
+            
+            playGuideNote(nextKeyRoot, 0.4); // ลดหางเสียงไกด์ลงเหลือ 0.4 วิ
+            setGuideNoteNum(nextKeyRoot);
+
+            // 3. ปรับจาก 1500 -> 800 (พัก 0.8 วิ ก่อนเริ่มร้องสเกลใหม่)
+            setTimeout(() => {
+              if (!isWarmingUpRef.current) return;
+              setGuideNoteNum(null);
+              warmupBaseNoteRef.current = nextKeyRoot; 
+              runWarmUpCycle(); 
+            }, 1200);
+
+          }, 400);
+
+        }, 800);
       }
     );
   };
@@ -262,10 +289,9 @@ const VocalPage = () => {
     });
   };
 
-  // ฟังก์ชันช่วยสร้างตัวเลือกโน้ตใน Dropdown
   const renderNoteOptions = () => {
     const opts = [];
-    for(let i=36; i<=84; i++) { // C2 ถึง C6
+    for(let i=36; i<=84; i++) { 
       opts.push(<option key={i} value={i} className="bg-slate-800">{getNoteString(i)}</option>);
     }
     return opts;
@@ -415,7 +441,6 @@ const VocalPage = () => {
         </div>
       </div>
 
-      {/* --- Modal ตั้งค่า Warm Up --- */}
       {isWarmUpModalOpen && (
         <div className="absolute inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-4 animate-in fade-in duration-200">
           <div className="bg-darkBg border border-slate-700 rounded-3xl p-6 shadow-2xl mb-24 relative overflow-hidden">
@@ -432,12 +457,10 @@ const VocalPage = () => {
 
             <div className="space-y-6 relative z-10">
               
-              {/* Section 1: ขอบเขตเสียง */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">1. Target Range</label>
                 <div className="flex flex-col gap-3">
                   
-                  {/* Option 1: กำหนดเอง */}
                   <label className={`flex flex-col p-3 rounded-xl border transition-colors cursor-pointer ${rangeMode === 'custom' ? 'bg-neonBlue/10 border-neonBlue' : 'bg-darkCard border-slate-800'}`}>
                     <div className="flex items-center gap-3 mb-2">
                       <input type="radio" name="rangeMode" value="custom" checked={rangeMode === 'custom'} onChange={() => setRangeMode('custom')} className="accent-neonBlue" />
@@ -456,7 +479,6 @@ const VocalPage = () => {
                     )}
                   </label>
 
-                  {/* Option 2: อิงตามโปรไฟล์ */}
                   <label className={`flex flex-col p-3 rounded-xl border transition-colors ${!hasSavedRange ? 'opacity-50 cursor-not-allowed bg-darkCard border-slate-800' : rangeMode === 'saved' ? 'bg-neonGreen/10 border-neonGreen cursor-pointer' : 'bg-darkCard border-slate-800 cursor-pointer'}`}>
                     <div className="flex items-center gap-3">
                       <input type="radio" name="rangeMode" value="saved" checked={rangeMode === 'saved'} disabled={!hasSavedRange} onChange={() => setRangeMode('saved')} className="accent-neonGreen" />
@@ -474,7 +496,6 @@ const VocalPage = () => {
                 </div>
               </div>
 
-              {/* Section 2: รูปแบบแพทเทิร์น */}
               <div>
                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3 block">2. Exercise Pattern</label>
                 <div className="grid grid-cols-2 gap-3">
