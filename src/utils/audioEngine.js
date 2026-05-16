@@ -135,12 +135,16 @@ export const getCentsOffPitch = (frequency, noteNumber) => {
   return Math.floor(1200 * Math.log2(frequency / standardFreq));
 };
 
-// --- อัปเดตฟังก์ชัน playGuideNote เดิมให้รองรับการตั้งความยาวเสียง (Duration) ---
 export const playGuideNote = (noteNumber, duration = 1.5) => {
-  if (!audioContext) {
+  // 1. เช็คว่าถ้ายังไม่มีเครื่องยนต์ หรือเครื่องยนต์ถูกปิดไปแล้ว (closed) ให้สร้างใหม่ทันที
+  if (!audioContext || audioContext.state === 'closed') {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
-  if (audioContext.state === 'suspended') audioContext.resume();
+  
+  // 2. ถ้าเครื่องยนต์แค่พักหน้าจอ (suspended) ก็ให้ปลุกมันขึ้นมา
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
 
   const freq = 440 * Math.pow(2, (noteNumber - 69) / 12);
   const osc = audioContext.createOscillator();
@@ -155,7 +159,6 @@ export const playGuideNote = (noteNumber, duration = 1.5) => {
   const now = audioContext.currentTime;
   gainNode.gain.setValueAtTime(0, now);
   gainNode.gain.linearRampToValueAtTime(0.6, now + 0.02); 
-  // เปลี่ยนให้ค่อยๆ เบาลงตาม duration ที่รับเข้ามา
   gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration); 
   
   osc.start(now);
