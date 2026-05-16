@@ -93,17 +93,27 @@ const VocalPage = () => {
   };
 
   const toggleFindRange = async () => {
-    if (!isListening) {
-      const success = await startAudio();
-      if (success) {
-        setIsListening(true);
-        animationRef.current = requestAnimationFrame(processAudio);
-      } else {
-        alert("กรุณาอนุญาตการเข้าถึงไมโครโฟนครับ");
-        return;
+    if (isFindingRange) {
+      // ถ้ากำลังหา Range อยู่ แล้วผู้ใช้กดปุ่มซ้ำ -> สั่งปิดไมค์และปิดระบบทั้งหมดทันที
+      stopAudio();
+      setIsListening(false);
+      setIsFindingRange(false);
+      resetStats();
+      cancelAnimationFrame(animationRef.current);
+    } else {
+      // ถ้ายังไม่ได้เปิดระบบ -> สั่งเปิดไมค์และเริ่มหา Range
+      if (!isListening) {
+        const success = await startAudio();
+        if (success) {
+          setIsListening(true);
+          animationRef.current = requestAnimationFrame(processAudio);
+        } else {
+          alert("กรุณาอนุญาตการเข้าถึงไมโครโฟนครับ");
+          return;
+        }
       }
+      setIsFindingRange(true);
     }
-    setIsFindingRange(!isFindingRange);
   };
 
   const handleWarmUpClick = () => {
